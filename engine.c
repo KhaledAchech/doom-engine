@@ -22,121 +22,157 @@ typedef struct
  int sl,sr;             //strafe left, right 
  int m;                 //move up, down, look up, down
 }keys; keys K;
+
+typedef struct
+{
+ float cos[360];		//Save sin cos in values 0 - 360 degrees
+ float sin[360];
+}match; match M;
+
+typedef struct
+{
+ int x,y,z;				//Player position; z is up
+ int a;					//Player angle of rotation left right
+ int l;					// l to look up or down
+}player; player P;
 //------------------------------------------------------------------------------
 
 void pixel(int x,int y, int c)                  //draw a pixel at x/y with rgb
-{int rgb[3];
- if(c==0){ rgb[0]=255; rgb[1]=255; rgb[2]=  0;} //Yellow	
- if(c==1){ rgb[0]=160; rgb[1]=160; rgb[2]=  0;} //Yellow darker	
- if(c==2){ rgb[0]=  0; rgb[1]=255; rgb[2]=  0;} //Green	
- if(c==3){ rgb[0]=  0; rgb[1]=160; rgb[2]=  0;} //Green darker	
- if(c==4){ rgb[0]=  0; rgb[1]=255; rgb[2]=255;} //Cyan	
- if(c==5){ rgb[0]=  0; rgb[1]=160; rgb[2]=160;} //Cyan darker
- if(c==6){ rgb[0]=160; rgb[1]=100; rgb[2]=  0;} //brown	
- if(c==7){ rgb[0]=110; rgb[1]= 50; rgb[2]=  0;} //brown darker
- if(c==8){ rgb[0]=  0; rgb[1]= 60; rgb[2]=130;} //background 
- glColor3ub(rgb[0],rgb[1],rgb[2]); 
- glBegin(GL_POINTS);
- glVertex2i(x*pixelScale+2,y*pixelScale+2);
- glEnd();
+{
+	 int rgb[3];
+	 if(c==0){ rgb[0]=255; rgb[1]=255; rgb[2]=  0;} //Yellow	
+	 if(c==1){ rgb[0]=160; rgb[1]=160; rgb[2]=  0;} //Yellow darker	
+	 if(c==2){ rgb[0]=  0; rgb[1]=255; rgb[2]=  0;} //Green	
+	 if(c==3){ rgb[0]=  0; rgb[1]=160; rgb[2]=  0;} //Green darker	
+	 if(c==4){ rgb[0]=  0; rgb[1]=255; rgb[2]=255;} //Cyan	
+	 if(c==5){ rgb[0]=  0; rgb[1]=160; rgb[2]=160;} //Cyan darker
+	 if(c==6){ rgb[0]=160; rgb[1]=100; rgb[2]=  0;} //brown	
+	 if(c==7){ rgb[0]=110; rgb[1]= 50; rgb[2]=  0;} //brown darker
+	 if(c==8){ rgb[0]=  0; rgb[1]= 60; rgb[2]=130;} //background 
+	 glColor3ub(rgb[0],rgb[1],rgb[2]); 
+	 glBegin(GL_POINTS);
+	 glVertex2i(x*pixelScale+2,y*pixelScale+2);
+	 glEnd();
 }
 
 void movePlayer()
 {
- //move up, down, left, right
- if(K.q ==1 && K.m==0){ printf("left\n");}  
- if(K.d ==1 && K.m==0){ printf("right\n");}
- if(K.z ==1 && K.m==0){ printf("up\n");}
- if(K.s ==1 && K.m==0){ printf("down\n");}
- //strafe left, right
- if(K.sr==1){ printf("strafe left\n");}
- if(K.sl==1){ printf("strafe right\n");}
- //move up, down, look up, look down
- if(K.q==1 && K.m==1){ printf("look up\n");}
- if(K.d==1 && K.m==1){ printf("look down\n");}
- if(K.z==1 && K.m==1){ printf("move up\n");}
- if(K.s==1 && K.m==1){ printf("move down\n");}
+	 //move up, down, left, right
+	 if(K.q ==1 && K.m==0){ P.a-=4; if(P.a<  0){ P.a+=360; }}  
+	 if(K.d ==1 && K.m==0){ P.a+=4; if(P.a>359){ P.a-=360; }}
+	 int dx=M.sin[P.a]*10.0;
+	 int dy=M.cos[P.a]*10.0;
+	 if(K.z ==1 && K.m==0){ P.x+=dx; P.y+=dy; }
+	 if(K.s ==1 && K.m==0){ P.x-=dx; P.y-=dy; }
+	 //strafe left, right
+	 if(K.sr==1){ P.x+=dy; P.y-=dx; }
+	 if(K.sl==1){ P.x-=dy; P.y+=dx; }
+	 //move up, down, look up, look down
+	 if(K.q==1 && K.m==1){ P.l-=1; }
+	 if(K.d==1 && K.m==1){ P.l+=1; }
+	 if(K.z==1 && K.m==1){ P.z-=4; }
+	 if(K.s==1 && K.m==1){ P.z+=4; }
 }
 
 void clearBackground() 
-{int x,y;
- for(y=0;y<SH;y++)
- { 
-  for(x=0;x<SW;x++){ pixel(x,y,8);} //clear background color
- }	
+{
+	int x,y;
+ 	for(y=0;y<SH;y++)
+ 	{ 
+	 	for(x=0;x<SW;x++){ pixel(x,y,8);} //clear background color
+ 	}	
 }
 
-int tick;
 void draw3D()
-{int x,y,c=0;
- for(y=0;y<SH2;y++)
- {
-  for(x=0;x<SW2;x++)
-  {
-   pixel(x,y,c); 
-   c+=1; if(c>8){ c=0;}
-  }
- }
- //frame rate
- tick+=1; if(tick>20){ tick=0;} pixel(SW2,SH2+tick,0); 
+{
+	int wx[4],wy[4],wz[4]; float CS=M.cos[P.a], SN=M.sin[P.a];
+	//offset bottom 2 points by player
+	int x1=40-P.x, y1= 10-P.y;
+	int x2=40-P.x, y2=290-P.y;
+	//world x position
+	wx[0]=x1*CS-y1*SN;
+	wx[1]=x2*CS-y2*SN;
+	//world y position (depth)
+	wy[0]=y1*CS+x1*SN;
+	wy[1]=y2*CS+x2*SN;
+	//world z height
+	wz[0]=0-P.z+((P.l*wy[0])/32.0);
+	wz[1]=0-P.z+((P.l*wy[1])/32.0);
+	//screen x, screen y position
+	wx[0]=wx[0]*200/wy[0]+SW2; wy[0]=wz[0]*200/wy[0]+SH2;
+	wx[1]=wx[1]*200/wy[1]+SW2; wy[1]=wz[1]*200/wy[1]+SH2;
+	//draw points
+	if(wx[0]>0 && wx[0]<SW && wy[0]>0 && wy[0]<SH) { pixel(wx[0],wy[0], 0);}
+	if(wx[1]>0 && wx[1]<SW && wy[1]>0 && wy[1]<SH) { pixel(wx[1],wy[1], 0);}
 }
 
 void display() 
-{int x,y;
- if(T.fr1-T.fr2>=50)                        //only draw 20 frames/second
- { 
-  clearBackground();
-  movePlayer();
-  draw3D(); 
-
-  T.fr2=T.fr1;   
-  glutSwapBuffers(); 
-  glutReshapeWindow(GLSW,GLSH);             //prevent window scaling
- }
-
- T.fr1=glutGet(GLUT_ELAPSED_TIME);          //1000 Milliseconds per second
- glutPostRedisplay();
+{
+	 int x,y;
+	 if(T.fr1-T.fr2>=50)                        //only draw 20 frames/second
+	 { 
+		  clearBackground();
+		  movePlayer();
+		  draw3D(); 
+		
+		  T.fr2=T.fr1;   
+		  glutSwapBuffers(); 
+		  glutReshapeWindow(GLSW,GLSH);             //prevent window scaling
+	 }
+	
+	 T.fr1=glutGet(GLUT_ELAPSED_TIME);          //1000 Milliseconds per second
+	 glutPostRedisplay();
 } 
 
 void KeysDown(unsigned char key,int x,int y)   
 { 
- if(key=='z'==1){ K.z =1;} 
- if(key=='s'==1){ K.s =1;} 
- if(key=='q'==1){ K.q =1;} 
- if(key=='d'==1){ K.d =1;} 
- if(key=='m'==1){ K.m =1;} 
- if(key==';'==1){ K.sr=1;} 
- if(key==':'==1){ K.sl=1;} 
+	 if(key=='z'==1){ K.z =1;} 
+	 if(key=='s'==1){ K.s =1;} 
+	 if(key=='q'==1){ K.q =1;} 
+	 if(key=='d'==1){ K.d =1;} 
+	 if(key=='m'==1){ K.m =1;} 
+	 if(key==';'==1){ K.sr=1;} 
+	 if(key==':'==1){ K.sl=1;} 
 }
 void KeysUp(unsigned char key,int x,int y)
 { 
- if(key=='z'==1){ K.z =0;}
- if(key=='s'==1){ K.s =0;}
- if(key=='q'==1){ K.q =0;}
- if(key=='d'==1){ K.d =0;}
- if(key=='m'==1){ K.m =0;}
- if(key==';'==1){ K.sr=0;} 
- if(key==':'==1){ K.sl=0;}
+	 if(key=='z'==1){ K.z =0;}
+	 if(key=='s'==1){ K.s =0;}
+	 if(key=='q'==1){ K.q =0;}
+	 if(key=='d'==1){ K.d =0;}
+	 if(key=='m'==1){ K.m =0;}
+	 if(key==';'==1){ K.sr=0;} 
+	 if(key==':'==1){ K.sl=0;}
 }
 
 void init()
-{       
+{
+	int x;
+	//Store sin and cos in degrees 
+	for (x=0; x<360; x++)
+	{											//Precalculate sin cos degrees
+		M.cos[x] = cos(x/180.0*M_PI);
+		M.sin[x] = sin(x/180.0*M_PI);
+	}
+	//init player
+	P.x=70; P.y=-110; P.z=20; P.a=0; P.l=0;
+
 }
 
 int main(int argc, char* argv[])
 {
- glutInit(&argc, argv);
- glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
- glutInitWindowPosition(GLSW/2,GLSH/2);
- glutInitWindowSize(GLSW,GLSH);
- glutCreateWindow(""); 
- glPointSize(pixelScale);                        //pixel size
- gluOrtho2D(0,GLSW,0,GLSH);                      //origin bottom left
- init();
- glutDisplayFunc(display);
- glutKeyboardFunc(KeysDown);
- glutKeyboardUpFunc(KeysUp);
- glutMainLoop();
- return 0;
+	 glutInit(&argc, argv);
+	 glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+	 glutInitWindowPosition(GLSW/2,GLSH/2);
+	 glutInitWindowSize(GLSW,GLSH);
+	 glutCreateWindow(""); 
+	 glPointSize(pixelScale);                        //pixel size
+	 gluOrtho2D(0,GLSW,0,GLSH);                      //origin bottom left
+	 init();
+	 glutDisplayFunc(display);
+	 glutKeyboardFunc(KeysDown);
+	 glutKeyboardUpFunc(KeysUp);
+	 glutMainLoop();
+	 return 0;
 } 
 
