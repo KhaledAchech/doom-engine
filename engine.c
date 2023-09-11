@@ -10,6 +10,8 @@
 #define pixelScale 4/res                    //OpenGL pixel scale
 #define GLSW       (SW*pixelScale)          //OpenGL window width
 #define GLSH       (SH*pixelScale)          //OpenGL window height
+#define numSect 4							//Number of sectors
+#define numWall 16							//Number of walls
 //------------------------------------------------------------------------------
 typedef struct 
 {
@@ -35,6 +37,21 @@ typedef struct
  int a;					//Player angle of rotation left right
  int l;					// l to look up or down
 }player; player P;
+
+typedef struct
+{
+	int x1, y1;			//Bottom line point 1
+	int x2, y2;			//Bottom line point 2
+	int c;				//Color
+}walls; walls W[30];
+
+typedef struct
+{
+	int ws, we;			//Wall number start and end
+	int z1, z2;			//Height of bottom and top
+	int x, y;			//Center position for sector
+	int d;				//add y distance to sort drawing order
+}sector; sector S[30];
 //------------------------------------------------------------------------------
 
 void pixel(int x,int y, int c)                  //draw a pixel at x/y with rgb
@@ -94,7 +111,7 @@ void clipBehindPlayer(int *x1, int *y1, int *z1, int x2, int y2, int z2)
 	*z1 = *z1 + s* (z2-(*z1));
 }
 
-void drawWall(int x1, int x2, int b1, int b2, int t1, int t2)
+void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int c)
 {
 	int x,y;
 	//hold difference in distance
@@ -104,10 +121,10 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2)
 	if (dx == 0) { dx=1; }				//x distance				
 	int xs=dx; 							//hold initial x1 starting position
 	//clip x
-	if (x1<    1){ x1=    1; }				//Clip left
-	if (x2<    1){ x2=    1; }				//Clip left
-	if (x1> SW-1){ x1= SW-1; }				//Clip right
-	if (x2> SW-1){ x2= SW-1; }				//Clip right
+	if (x1<    1){ x1=    1; }			//Clip left
+	if (x2<    1){ x2=    1; }			//Clip left
+	if (x1> SW-1){ x1= SW-1; }			//Clip right
+	if (x2> SW-1){ x2= SW-1; }			//Clip right
 	//draw vertical lines
 	for(x=x1; x<x2; x++)
 	{
@@ -120,61 +137,93 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2)
 		if (y2> SH-1){ y2= SH-1; }
 		for(y = y1; y<y2; y++)
 		{
-			pixel(x, y, 0);
+			pixel(x, y, c);
 		}
 	}
 	
 }
 
+int dist(int x1, int y1, int x2, int y2)
+{
+	int distance = sqrt((x2-x1) * (x2-x1) + (y2-y1) * (y2-y1));
+	return distance;
+}
+
 void draw3D()
 {
-	int wx[4],wy[4],wz[4]; float CS=M.cos[P.a], SN=M.sin[P.a];
-	//offset bottom 2 points by player
-	int x1=40-P.x, y1= 10-P.y;
-	int x2=40-P.x, y2=290-P.y;
+	int s, w, wx[4],wy[4],wz[4]; float CS=M.cos[P.a], SN=M.sin[P.a];
 	
-	//world x position
-	wx[0]=x1*CS-y1*SN;
-	wx[1]=x2*CS-y2*SN;
-	wx[2]=wx[0];					//top line has the same x
-	wx[3]=wx[1];
-	
-	//world y position (depth)
-	wy[0]=y1*CS+x1*SN;
-	wy[1]=y2*CS+x2*SN;
-	wy[2]=wy[0];					//top line has the same y
-	wy[3]=wy[1];
-	
-	//world z height
-	wz[0]=0-P.z+((P.l*wy[0])/32.0);
-	wz[1]=0-P.z+((P.l*wy[1])/32.0);
-	wz[2]=wz[0]+40;
-	wz[3]=wz[1]+40;
-	
-	//Don't draw if points behind player
-	if (wy[0]<1 && wy[1]<1) { return; }
-	
-	//point 1 behind player => Clip
-	if (wy[0]<1)
+	//order sectors by distance
+	for(s=0;s<numSect-1;s++)
 	{
-		clipBehindPlayer(&wx[0], &wy[0], &wz[0], wx[1], wy[1], wz[1]); //Bottom line
-		clipBehindPlayer(&wx[2], &wy[2], &wz[2], wx[3], wy[3], wz[3]); //Top    line
-	}
-	//point 2 behind player => Clip
-	if (wy[1]<1)
-	{
-		clipBehindPlayer(&wx[1], &wy[1], &wz[1], wx[0], wy[0], wz[0]); //Bottom line
-		clipBehindPlayer(&wx[3], &wy[3], &wz[3], wx[2], wy[2], wz[2]); //Top    line
+		for(w=0;w<numSect-s-1;w++)
+		{
+			if(S[w].d<S[w+1].d)
+			{
+				sector st=S[w]; S[w]=S[w+1]; S[w+1]=st;
+			}
+		}
 	}
 	
-	//screen x, screen y position
-	wx[0]=wx[0]*200/wy[0]+SW2; wy[0]=wz[0]*200/wy[0]+SH2;
-	wx[1]=wx[1]*200/wy[1]+SW2; wy[1]=wz[1]*200/wy[1]+SH2;
-	wx[2]=wx[2]*200/wy[2]+SW2; wy[2]=wz[2]*200/wy[2]+SH2;
-	wx[3]=wx[3]*200/wy[3]+SW2; wy[3]=wz[3]*200/wy[3]+SH2;
-	
-	//draw points	
-	drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3]);
+	//draw sectors
+	for (s=0; s<numSect;s++)
+	{
+		S[s].d = 0;							//Clear distance
+		for (w=S[s].ws;w<S[s].we;w++)
+		{
+			//offset bottom 2 points by player
+			int x1=W[w].x1-P.x, y1= W[w].y1-P.y;
+			int x2=W[w].x2-P.x, y2= W[w].y2-P.y;
+			
+			//world x position
+			wx[0]=x1*CS-y1*SN;
+			wx[1]=x2*CS-y2*SN;
+			wx[2]=wx[0];					//top line has the same x
+			wx[3]=wx[1];
+			
+			//world y position (depth)
+			wy[0]=y1*CS+x1*SN;
+			wy[1]=y2*CS+x2*SN;
+			wy[2]=wy[0];					//top line has the same y
+			wy[3]=wy[1];
+			
+			//Store this wall distance
+			S[s].d+=dist(0,0, (wx[0]+wx[1])/2, (wy[0]+wy[1])/2);
+			
+			//world z height
+			wz[0]=S[s].z1-P.z+((P.l*wy[0])/32.0);
+			wz[1]=S[s].z1-P.z+((P.l*wy[1])/32.0);
+			wz[2]=wz[0]+S[s].z2;
+			wz[3]=wz[1]+S[s].z2;
+			
+			//Don't draw if points behind player
+			if (wy[0]<1 && wy[1]<1) { continue; }
+			
+			//point 1 behind player => Clip
+			if (wy[0]<1)
+			{
+				clipBehindPlayer(&wx[0], &wy[0], &wz[0], wx[1], wy[1], wz[1]); //Bottom line
+				clipBehindPlayer(&wx[2], &wy[2], &wz[2], wx[3], wy[3], wz[3]); //Top    line
+			}
+			//point 2 behind player => Clip
+			if (wy[1]<1)
+			{
+				clipBehindPlayer(&wx[1], &wy[1], &wz[1], wx[0], wy[0], wz[0]); //Bottom line
+				clipBehindPlayer(&wx[3], &wy[3], &wz[3], wx[2], wy[2], wz[2]); //Top    line
+			}
+			
+			//screen x, screen y position
+			wx[0]=wx[0]*200/wy[0]+SW2; wy[0]=wz[0]*200/wy[0]+SH2;
+			wx[1]=wx[1]*200/wy[1]+SW2; wy[1]=wz[1]*200/wy[1]+SH2;
+			wx[2]=wx[2]*200/wy[2]+SW2; wy[2]=wz[2]*200/wy[2]+SH2;
+			wx[3]=wx[3]*200/wy[3]+SW2; wy[3]=wz[3]*200/wy[3]+SH2;
+			
+			//draw points	
+			drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3], W[w].c);
+		}
+		//Find average sector distance
+		S[s].d/=(S[s].we - S[s].ws);
+	}
 }
 
 void display() 
@@ -188,7 +237,7 @@ void display()
 		
 		  T.fr2=T.fr1;   
 		  glutSwapBuffers(); 
-		  glutReshapeWindow(GLSW,GLSH);             //prevent window scaling
+		  glutReshapeWindow(GLSW,GLSH);         //prevent window scaling
 	 }
 	
 	 T.fr1=glutGet(GLUT_ELAPSED_TIME);          //1000 Milliseconds per second
@@ -216,17 +265,67 @@ void KeysUp(unsigned char key,int x,int y)
 	 if(key==':'==1){ K.sl=0;}
 }
 
+int loadSectors[]=
+{//Wall start, Wall end, z1 height, z2 height
+	0,	4,	0,	40, // Sector 1
+	4,	8,	0,	40, // Sector 2
+	8, 12,	0,	40, // Sector 3
+   12, 16,	0,	40, // Sector 4
+};
+
+int loadWalls[]=
+{//x1,y1, x2,y2, color
+	0,	0,	32, 0, 0,
+   32,	0,	32,32, 1,
+   32, 32,	 0,32, 0,
+    0, 32,	 0, 0, 1,
+	
+   64,	0,	96, 0, 2,
+   96,	0,	96,32, 3,
+   96, 32,	64,32, 2,
+   64, 32,	64, 0, 3,
+	
+   64, 64,	96,64, 4,
+   96, 64,	96,96, 5,
+   96, 96,	64,96, 4,
+   64, 96,	64,64, 5,
+	
+    0, 64,	32,64, 6,
+   32, 64,	32,96, 7,
+   32, 96,	 0,96, 6,
+    0, 96,	 0,64, 7,
+};
+
 void init()
 {
 	int x;
 	//Store sin and cos in degrees 
 	for (x=0; x<360; x++)
-	{											//Precalculate sin cos degrees
+	{											     //Precalculate sin cos degrees
 		M.cos[x] = cos(x/180.0*M_PI);
 		M.sin[x] = sin(x/180.0*M_PI);
 	}
 	//init player
-	P.x=70; P.y=-110; P.z=20; P.a=0; P.l=0;
+	P.x=70; P.y=-110; P.z=20; P.a=0; P.l=0;	
+	//load sectors
+	int s,w,v1=0,v2=0;
+	for (s=0;s<numSect;s++)
+	{
+		S[s].ws=loadSectors[v1+0];						//wall start number
+		S[s].we=loadSectors[v1+1];						//wall end number
+		S[s].z1=loadSectors[v1+2];						//sector bottom height
+		S[s].z2=loadSectors[v1+3] - loadSectors[v1+2];	//sector top    height
+		v1+=4;
+		for (w=S[s].ws;w<S[s].we;w++)
+		{
+			W[w].x1=loadWalls[v2+0];	//bottom x1
+			W[w].y1=loadWalls[v2+1];	//bottom y1
+			W[w].x2=loadWalls[v2+2];	//top	 x2
+			W[w].y2=loadWalls[v2+3];	//top    y2
+			W[w].c =loadWalls[v2+4];	//wall color
+			v2+=5;
+		}
+	}
 
 }
 
