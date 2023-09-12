@@ -51,6 +51,9 @@ typedef struct
 	int z1, z2;			//Height of bottom and top
 	int x, y;			//Center position for sector
 	int d;				//add y distance to sort drawing order
+	int c1, c2;			//bottom and top color
+	int surf[SW];		//to hold points for surfaces
+	int surface;		//is there a surface to draw
 }sector; sector S[30];
 //------------------------------------------------------------------------------
 
@@ -111,7 +114,7 @@ void clipBehindPlayer(int *x1, int *y1, int *z1, int x2, int y2, int z2)
 	*z1 = *z1 + s* (z2-(*z1));
 }
 
-void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int c)
+void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int c, int s)
 {
 	int x,y;
 	//hold difference in distance
@@ -135,10 +138,12 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int c)
 		if (y2<    1){ y2=    1; }
 		if (y1> SH-1){ y1= SH-1; }
 		if (y2> SH-1){ y2= SH-1; }
-		for(y = y1; y<y2; y++)
-		{
-			pixel(x, y, c);
-		}
+		//surface
+		if(S[s].surface== 1){ S[s].surf[x]=y1; continue;}	//save bottom points
+		if(S[s].surface== 2){ S[s].surf[x]=y2; continue;}	//save top	  points
+		if(S[s].surface==-1){ for(y=S[s].surf[x];y<y1;y++){pixel(x,y,S[s].c1);};}	//bottom
+		if(S[s].surface==-2){ for(y=y2;y<S[s].surf[x];y++){pixel(x,y,S[s].c2);};}	//top
+		for(y = y1; y<y2; y++){ pixel(x, y, c); } //normal wall
 	}
 	
 }
@@ -169,6 +174,11 @@ void draw3D()
 	for (s=0; s<numSect;s++)
 	{
 		S[s].d = 0;							//Clear distance
+		
+		if     (P.z<S[s].z1){S[s].surface=1;}	 		//bottom surface
+		else if(P.z>S[s].z2){S[s].surface=2;}			//top	 surface
+		else				{S[s].surface=0;} 			//no	 surface
+		
 		for (loop=0; loop<2; loop++)
 		{
 			for (w=S[s].ws;w<S[s].we;w++)
@@ -222,10 +232,11 @@ void draw3D()
 				wx[3]=wx[3]*200/wy[3]+SW2; wy[3]=wz[3]*200/wy[3]+SH2;
 				
 				//draw points	
-				drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3], W[w].c);
+				drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3], W[w].c, s);
 			}
 			//Find average sector distance
 			S[s].d/=(S[s].we - S[s].ws);
+			S[s].surface*=-1;
 		}
 	}
 }
@@ -271,10 +282,10 @@ void KeysUp(unsigned char key,int x,int y)
 
 int loadSectors[]=
 {//Wall start, Wall end, z1 height, z2 height
-	0,	4,	0,	40, // Sector 1
-	4,	8,	0,	40, // Sector 2
-	8, 12,	0,	40, // Sector 3
-   12, 16,	0,	40, // Sector 4
+	0,	4,	0,	40, 2,3, // Sector 1
+	4,	8,	0,	40, 4,5, // Sector 2
+	8, 12,	0,	40, 6,7, // Sector 3
+   12, 16,	0,	40, 0,1, // Sector 4
 };
 
 int loadWalls[]=
@@ -319,7 +330,9 @@ void init()
 		S[s].we=loadSectors[v1+1];						//wall end number
 		S[s].z1=loadSectors[v1+2];						//sector bottom height
 		S[s].z2=loadSectors[v1+3] - loadSectors[v1+2];	//sector top    height
-		v1+=4;
+		S[s].c1=loadSectors[v1+4];						//sector top	color
+		S[s].c2=loadSectors[v1+5];						//sector bottom color
+		v1+=6;
 		for (w=S[s].ws;w<S[s].we;w++)
 		{
 			W[w].x1=loadWalls[v2+0];	//bottom x1
