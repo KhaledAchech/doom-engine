@@ -119,7 +119,7 @@ void drawWall(int x1, int x2, int b1, int b2, int t1, int t2, int c)
 	int dyt  = t2-t1;					//y distance of top    line
 	int dx   = x2-x1;					//x distance
 	if (dx == 0) { dx=1; }				//x distance				
-	int xs=dx; 							//hold initial x1 starting position
+	int xs=x1; 							//hold initial x1 starting position
 	//clip x
 	if (x1<    1){ x1=    1; }			//Clip left
 	if (x2<    1){ x2=    1; }			//Clip left
@@ -151,7 +151,7 @@ int dist(int x1, int y1, int x2, int y2)
 
 void draw3D()
 {
-	int s, w, wx[4],wy[4],wz[4]; float CS=M.cos[P.a], SN=M.sin[P.a];
+	int s, w, loop, wx[4],wy[4],wz[4]; float CS=M.cos[P.a], SN=M.sin[P.a];
 	
 	//order sectors by distance
 	for(s=0;s<numSect-1;s++)
@@ -169,60 +169,64 @@ void draw3D()
 	for (s=0; s<numSect;s++)
 	{
 		S[s].d = 0;							//Clear distance
-		for (w=S[s].ws;w<S[s].we;w++)
+		for (loop=0; loop<2; loop++)
 		{
-			//offset bottom 2 points by player
-			int x1=W[w].x1-P.x, y1= W[w].y1-P.y;
-			int x2=W[w].x2-P.x, y2= W[w].y2-P.y;
-			
-			//world x position
-			wx[0]=x1*CS-y1*SN;
-			wx[1]=x2*CS-y2*SN;
-			wx[2]=wx[0];					//top line has the same x
-			wx[3]=wx[1];
-			
-			//world y position (depth)
-			wy[0]=y1*CS+x1*SN;
-			wy[1]=y2*CS+x2*SN;
-			wy[2]=wy[0];					//top line has the same y
-			wy[3]=wy[1];
-			
-			//Store this wall distance
-			S[s].d+=dist(0,0, (wx[0]+wx[1])/2, (wy[0]+wy[1])/2);
-			
-			//world z height
-			wz[0]=S[s].z1-P.z+((P.l*wy[0])/32.0);
-			wz[1]=S[s].z1-P.z+((P.l*wy[1])/32.0);
-			wz[2]=wz[0]+S[s].z2;
-			wz[3]=wz[1]+S[s].z2;
-			
-			//Don't draw if points behind player
-			if (wy[0]<1 && wy[1]<1) { continue; }
-			
-			//point 1 behind player => Clip
-			if (wy[0]<1)
+			for (w=S[s].ws;w<S[s].we;w++)
 			{
-				clipBehindPlayer(&wx[0], &wy[0], &wz[0], wx[1], wy[1], wz[1]); //Bottom line
-				clipBehindPlayer(&wx[2], &wy[2], &wz[2], wx[3], wy[3], wz[3]); //Top    line
+				//offset bottom 2 points by player
+				int x1=W[w].x1-P.x, y1= W[w].y1-P.y;
+				int x2=W[w].x2-P.x, y2= W[w].y2-P.y;
+				if (loop==0) { int swp=x1;x1=x2;x2=swp; swp=y1;y1=y2;y2=swp; }
+				
+				//world x position
+				wx[0]=x1*CS-y1*SN;
+				wx[1]=x2*CS-y2*SN;
+				wx[2]=wx[0];					//top line has the same x
+				wx[3]=wx[1];
+				
+				//world y position (depth)
+				wy[0]=y1*CS+x1*SN;
+				wy[1]=y2*CS+x2*SN;
+				wy[2]=wy[0];					//top line has the same y
+				wy[3]=wy[1];
+				
+				//Store this wall distance
+				S[s].d+=dist(0,0, (wx[0]+wx[1])/2, (wy[0]+wy[1])/2);
+				
+				//world z height
+				wz[0]=S[s].z1-P.z+((P.l*wy[0])/32.0);
+				wz[1]=S[s].z1-P.z+((P.l*wy[1])/32.0);
+				wz[2]=wz[0]+S[s].z2;
+				wz[3]=wz[1]+S[s].z2;
+				
+				//Don't draw if points behind player
+				if (wy[0]<1 && wy[1]<1) { continue; }
+				
+				//point 1 behind player => Clip
+				if (wy[0]<1)
+				{
+					clipBehindPlayer(&wx[0], &wy[0], &wz[0], wx[1], wy[1], wz[1]); //Bottom line
+					clipBehindPlayer(&wx[2], &wy[2], &wz[2], wx[3], wy[3], wz[3]); //Top    line
+				}
+				//point 2 behind player => Clip
+				if (wy[1]<1)
+				{
+					clipBehindPlayer(&wx[1], &wy[1], &wz[1], wx[0], wy[0], wz[0]); //Bottom line
+					clipBehindPlayer(&wx[3], &wy[3], &wz[3], wx[2], wy[2], wz[2]); //Top    line
+				}
+				
+				//screen x, screen y position
+				wx[0]=wx[0]*200/wy[0]+SW2; wy[0]=wz[0]*200/wy[0]+SH2;
+				wx[1]=wx[1]*200/wy[1]+SW2; wy[1]=wz[1]*200/wy[1]+SH2;
+				wx[2]=wx[2]*200/wy[2]+SW2; wy[2]=wz[2]*200/wy[2]+SH2;
+				wx[3]=wx[3]*200/wy[3]+SW2; wy[3]=wz[3]*200/wy[3]+SH2;
+				
+				//draw points	
+				drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3], W[w].c);
 			}
-			//point 2 behind player => Clip
-			if (wy[1]<1)
-			{
-				clipBehindPlayer(&wx[1], &wy[1], &wz[1], wx[0], wy[0], wz[0]); //Bottom line
-				clipBehindPlayer(&wx[3], &wy[3], &wz[3], wx[2], wy[2], wz[2]); //Top    line
-			}
-			
-			//screen x, screen y position
-			wx[0]=wx[0]*200/wy[0]+SW2; wy[0]=wz[0]*200/wy[0]+SH2;
-			wx[1]=wx[1]*200/wy[1]+SW2; wy[1]=wz[1]*200/wy[1]+SH2;
-			wx[2]=wx[2]*200/wy[2]+SW2; wy[2]=wz[2]*200/wy[2]+SH2;
-			wx[3]=wx[3]*200/wy[3]+SW2; wy[3]=wz[3]*200/wy[3]+SH2;
-			
-			//draw points	
-			drawWall(wx[0], wx[1], wy[0], wy[1], wy[2], wy[3], W[w].c);
+			//Find average sector distance
+			S[s].d/=(S[s].we - S[s].ws);
 		}
-		//Find average sector distance
-		S[s].d/=(S[s].we - S[s].ws);
 	}
 }
 
